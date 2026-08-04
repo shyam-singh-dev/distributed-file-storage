@@ -3,6 +3,7 @@ package com.filestore.service.impl;
 import com.filestore.dto.UserDTO;
 import com.filestore.entity.User;
 import com.filestore.exception.ResourceNotFoundException;
+import com.filestore.exception.UserNotFoundException;
 import com.filestore.service.UserService;
 import com.filestore.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -38,11 +39,25 @@ public class UserServiceImpl implements UserService {
 
     }
 
+    public UserDTO getUserByFullName(String fullName) {
+        log.warn("No User found : {} ",fullName);
+        User user =  userRepository.findByFullName(fullName)
+                .orElseThrow(() -> new UserNotFoundException("User not found with fullName : "));
+        return convertToDTO(user);
+    }
+
+    public Long getUserCount() {
+     log.info("Fetching total user count");
+     return userRepository.count();
+    }
+
+
     private UserDTO convertToDTO(User user) {
         return UserDTO.builder()
                 .id(user.getId())
                 .fullName(user.getFullName())
                 .email(user.getEmail())
+                .role(user.getRole())
                 .createdAt(user.getCreatedAt())
                 .build();
     }

@@ -1,15 +1,12 @@
 package com.filestore.controller;
 
-
+import com.filestore.dto.ApiResponse;
 import com.filestore.dto.UserDTO;
 import com.filestore.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -17,24 +14,34 @@ import java.util.List;
 @RequestMapping("/api/v1/users")
 @RequiredArgsConstructor
 @Slf4j
-
 public class UserController {
 
     private final UserService userService;
 
     @GetMapping
-    public ResponseEntity<List<UserDTO>> getAllUsers() {
-        log.info("GET / api/v1/users - fetching all users");
+    public ResponseEntity<ApiResponse<List<UserDTO>>> getAllUsers() {
+        log.info("GET /api/v1/users - Fetching all users");
         List<UserDTO> users = userService.getAllUsers();
-        return ResponseEntity.ok(users);
-
+        return ResponseEntity.ok(
+                ApiResponse.success("Users fetched successfully", users)
+        );
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<UserDTO> getUserById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<UserDTO>> getUserById(@PathVariable Long id) {
         log.info("GET /api/v1/users/{} - Fetching user by id", id);
         UserDTO user = userService.getUserById(id);
-        return ResponseEntity.ok(user);
+        return ResponseEntity.ok(
+                ApiResponse.success("User fetched successfully", user)
+        );
     }
 
+    @GetMapping("/count")
+    public ResponseEntity<ApiResponse<Long>> getUserCount() {
+        log.info("GET /api/v1/users/count - Fetching total user count");
+        Long count = userService.getUserCount();
+        return ResponseEntity.ok(
+                ApiResponse.success("User count fetched successfully", count)
+        );
+    }
 }

@@ -8,5 +8,7 @@ public interface UserService {
 
     List<UserDTO> getAllUsers() ;
     UserDTO getUserById(Long id);
+    UserDTO getUserByFullName(String fullName);
+    Long getUserCount();
 
 }

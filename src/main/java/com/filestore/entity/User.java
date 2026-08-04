@@ -34,6 +34,9 @@ public class User {
     @Column(name = "password", nullable = false)
     private String password;
 
+    @Column(nullable = false)
+    private String role = "USER";
+
     @Column(name = "created_at",updatable = false)
     private LocalDateTime createdAt;
 
