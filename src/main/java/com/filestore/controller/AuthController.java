@@ -1,8 +1,6 @@
 package com.filestore.controller;
 
-import com.filestore.dto.ApiResponse;
-import com.filestore.dto.RegisterRequest;
-import com.filestore.dto.UserDTO;
+import com.filestore.dto.*;
 import com.filestore.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -32,5 +30,15 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success("User register successfully ", registeredUser));
     }
+    @PostMapping("/login")
+    public ResponseEntity<ApiResponse<AuthResponse>> login(
+            @Valid @RequestBody LoginRequest request) {
+
+        AuthResponse authResponse = authService.login(request);
+        return ResponseEntity.ok(
+                ApiResponse.success("Login successful", authResponse)
+        );
+    }
+
 
 }
