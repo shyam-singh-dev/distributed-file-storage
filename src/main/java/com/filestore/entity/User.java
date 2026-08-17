@@ -4,9 +4,6 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
-import org.hibernate.annotations.CollectionId;
-import tools.jackson.databind.node.StringNode;
-
 import java.time.LocalDateTime;
 
 @Entity

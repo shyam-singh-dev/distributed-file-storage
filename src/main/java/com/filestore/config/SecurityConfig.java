@@ -49,7 +49,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public endpoints
                         .requestMatchers(
-                                "/api/v1/auth/**"
+                                "/api/v1/auth/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html",
+                                "/api-docs/**",
+                                "/v3/api-docs/**"
                         ).permitAll()
                         // Everything else needs JWT
                         .anyRequest().authenticated()
