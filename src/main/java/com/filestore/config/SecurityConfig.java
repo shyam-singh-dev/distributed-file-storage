@@ -12,6 +12,7 @@ import org.springframework.security.authentication.dao
         .DaoAuthenticationProvider;
 import org.springframework.security.config.annotation
         .authentication.configuration.AuthenticationConfiguration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web
         .builders.HttpSecurity;
 import org.springframework.security.config.annotation.web
@@ -28,22 +29,31 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication
         .UsernamePasswordAuthenticationFilter;
 
+import com.filestore.config.CorsConfig;
+
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity(prePostEnabled = true)
 @RequiredArgsConstructor
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final UserDetailsService userDetailsService;
     private final PasswordEncoder passwordEncoder;
+    private final CorsConfig corsConfig;
 
     @Bean
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http) throws Exception {
 
         http
-                // Disable CSRF (JWT-based REST API)
+                .cors(cors -> cors.configurationSource(
+                        corsConfig.corsConfigurationSource()))
                 .csrf(AbstractHttpConfigurer::disable)
+
+//        http
+//                // Disable CSRF (JWT-based REST API)
+//                .csrf(AbstractHttpConfigurer::disable)
 
                 // Define access rules
                 .authorizeHttpRequests(auth -> auth
@@ -55,6 +65,10 @@ public class SecurityConfig {
                                 "/api-docs/**",
                                 "/v3/api-docs/**"
                         ).permitAll()
+                        // Admin endpoints — ROLE_ADMIN only
+                        .requestMatchers(
+                                "/api/v1/admin/**"
+                        ).hasRole("ADMIN")
                         // Everything else needs JWT
                         .anyRequest().authenticated()
                 )

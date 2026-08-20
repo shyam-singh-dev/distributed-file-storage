@@ -1,5 +1,15 @@
 package com.filestore.service.impl;
 
+import com.filestore.dto.PageResponse;
+import com.filestore.dto.ShareFileRequest;
+import com.filestore.entity.FileShare;
+import com.filestore.repository.fileShareRepository;
+import com.filestore.repository.UserRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+
 import com.filestore.dto.FileMetadataDTO;
 import com.filestore.dto.FileUploadResponse;
 import com.filestore.entity.FileMetadata;
@@ -17,6 +27,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -25,8 +36,30 @@ import java.util.stream.Collectors;
 @Slf4j
 public class FileServiceImpl implements FileService {
 
+    private static final List<String> ALLOWED_CONTENT_TYPES =
+            Arrays.asList(
+                    "image/jpeg",
+                    "image/png",
+                    "image/gif",
+                    "image/webp",
+                    "application/pdf",
+                    "application/msword",
+                    "application/vnd.openxmlformats-officedocument"
+                            + ".wordprocessingml.document",
+                    "application/vnd.ms-excel",
+                    "application/vnd.openxmlformats-officedocument"
+                            + ".spreadsheetml.sheet",
+                    "text/plain",
+                    "application/zip",
+                    "video/mp4",
+                    "audio/mpeg"
+            );
+
     private final FileMetadataRepository fileMetadataRepository;
     private final MinioService minioService;
+
+    private final fileShareRepository fileShareRepository;
+    private final UserRepository userRepository;
 
     // ─────────────────────────────────────
     // UPLOAD FILE
@@ -124,17 +157,165 @@ public class FileServiceImpl implements FileService {
     // ─────────────────────────────────────
     // GET USER FILES
     // ─────────────────────────────────────
+
     @Override
-    public List<FileMetadataDTO> getUserFiles(String userEmail) {
 
-        log.info("Fetching files for user: {}", userEmail);
+    public PageResponse<FileMetadataDTO> getUserFiles(
+            String userEmail, int page, int size) {
 
-        List<FileMetadata> files = fileMetadataRepository
-                .findByUploadedByAndIsDeletedFalse(userEmail);
+        log.info("Fetching files for: {} page: {}", userEmail, page);
 
-        return files.stream()
+        Pageable pageable = PageRequest.of(
+                page, size,
+                Sort.by("createdAt").descending()
+        );
+
+        Page<FileMetadata> filePage = fileMetadataRepository
+                .findByUploadedByAndIsDeletedFalse(
+                        userEmail, pageable);
+
+        List<FileMetadataDTO> content = filePage.getContent()
+                .stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
+
+        return PageResponse.<FileMetadataDTO>builder()
+                .content(content)
+                .pageNumber(filePage.getNumber())
+                .pageSize(filePage.getSize())
+                .totalElements(filePage.getTotalElements())
+                .totalPages(filePage.getTotalPages())
+                .lastPage(filePage.isLast())
+                .build();
+    }
+
+
+    // SHARE FILES
+
+    @Override
+    @Transactional
+    public void shareFile(
+            ShareFileRequest request, String ownerEmail) {
+
+        log.info("Sharing file {} with {}",
+                request.getFileId(), request.getSharedWithEmail());
+
+        // Verify file belongs to owner
+        FileMetadata file = fileMetadataRepository
+                .findByIdAndUploadedByAndIsDeletedFalse(
+                        request.getFileId(), ownerEmail)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "File not found with id: "
+                                + request.getFileId()));
+
+        // Cannot share with yourself
+        if (ownerEmail.equals(request.getSharedWithEmail())) {
+            throw new RuntimeException(
+                    "You cannot share a file with yourself");
+        }
+
+        // Verify recipient exists
+        if (!userRepository.existsByEmail(
+                request.getSharedWithEmail())) {
+            throw new ResourceNotFoundException(
+                    "User not found: "
+                            + request.getSharedWithEmail());
+        }
+
+        // Check already shared
+        if (fileShareRepository.existsByFileIdAndSharedWithEmail(
+                request.getFileId(),
+                request.getSharedWithEmail())) {
+            throw new RuntimeException(
+                    "File already shared with this user");
+        }
+
+        // Create share record
+        FileShare share = FileShare.builder()
+                .file(file)
+                .sharedByEmail(ownerEmail)
+                .sharedWithEmail(request.getSharedWithEmail())
+                .build();
+
+        fileShareRepository.save(share);
+        log.info("File {} shared successfully with {}",
+                request.getFileId(), request.getSharedWithEmail());
+    }
+
+    // UNSHARE FILE
+
+    @Override
+    @Transactional
+    public void unshareFile(
+            Long fileId,
+            String sharedWithEmail,
+            String ownerEmail) {
+
+        log.info("Unsharing file {} from {}",
+                fileId, sharedWithEmail);
+
+        // Verify file belongs to owner
+        fileMetadataRepository
+                .findByIdAndUploadedByAndIsDeletedFalse(
+                        fileId, ownerEmail)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "File not found with id: " + fileId));
+
+        fileShareRepository
+                .deleteByFileIdAndSharedWithEmail(
+                        fileId, sharedWithEmail);
+
+        log.info("File {} unshared from {}",
+                fileId, sharedWithEmail);
+    }
+
+    // Get shared files
+
+    @Override
+    public List<FileMetadataDTO> getFilesSharedWithMe(
+            String userEmail) {
+
+        log.info("Fetching files shared with: {}", userEmail);
+
+        List<FileShare> shares = fileShareRepository
+                .findBySharedWithEmail(userEmail);
+
+        return shares.stream()
+                .map(share -> convertToDTO(share.getFile()))
+                .collect(Collectors.toList());
+    }
+
+    // Download shared files
+
+    @Override
+    public InputStreamResource downloadSharedFile(
+            Long fileId, String requestedBy) {
+
+        log.info("Shared file download request: {} by: {}",
+                fileId, requestedBy);
+
+        // Check if file is shared with this user
+        FileShare share = fileShareRepository
+                .findByFileIdAndSharedWithEmail(fileId, requestedBy)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Shared file not found with id: " + fileId));
+
+        FileMetadata metadata = share.getFile();
+
+        if (metadata.getIsDeleted()) {
+            throw new ResourceNotFoundException(
+                    "File no longer available");
+        }
+
+        try {
+            InputStream inputStream =
+                    minioService.downloadFile(
+                            metadata.getObjectName());
+            return new InputStreamResource(inputStream);
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    "File download failed: " + e.getMessage());
+        }
     }
 
     // ─────────────────────────────────────
@@ -190,12 +371,30 @@ public class FileServiceImpl implements FileService {
     // HELPER METHODS
     // ─────────────────────────────────────
     private void validateFile(MultipartFile file) {
+
         if (file == null || file.isEmpty()) {
             throw new RuntimeException("File cannot be empty");
         }
+
         if (file.getSize() > 100 * 1024 * 1024) {
             throw new RuntimeException(
                     "File size exceeds maximum limit of 100MB");
+        }
+
+        String contentType = file.getContentType();
+        if (contentType == null
+                || !ALLOWED_CONTENT_TYPES.contains(contentType)) {
+            throw new RuntimeException(
+                    "File type not allowed: " + contentType
+                            + ". Allowed: images, PDF, Office docs, "
+                            + "text, zip, video, audio");
+        }
+
+        String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null
+                || originalFilename.contains("..")) {
+            throw new RuntimeException(
+                    "Invalid file name");
         }
     }
 
@@ -209,6 +408,7 @@ public class FileServiceImpl implements FileService {
         return String.format("%.2f GB",
                 bytes / (1024.0 * 1024 * 1024));
     }
+
 
     private FileMetadataDTO convertToDTO(FileMetadata metadata) {
         return FileMetadataDTO.builder()

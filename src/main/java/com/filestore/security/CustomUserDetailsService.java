@@ -36,7 +36,7 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .User.builder()
                 .username(user.getEmail())
                 .password(user.getPassword())
-                .authorities(List.of(new SimpleGrantedAuthority("ROLE_ "+ user.getRole())))
+                .authorities(List.of(new SimpleGrantedAuthority("ROLE_"+ user.getRole())))
                 .build();
     }
 }
