@@ -2,12 +2,10 @@ package com.filestore.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
-
-import javax.swing.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table
+@Table(name = "file_metadata")
 @Data
 @Builder
 @NoArgsConstructor
@@ -19,7 +17,7 @@ public class FileMetadata {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "File_name", nullable = false)
+    @Column(name = "file_name", nullable = false)
     private String fileName;
 
     @Column(name = "original_name", nullable = false)

@@ -10,7 +10,6 @@ const App = () => {
   return (
     <BrowserRouter>
       <Navbar />
-
       <Routes>
         <Route
           path="/"
@@ -22,11 +21,8 @@ const App = () => {
             )
           }
         />
-
         <Route path="/login" element={<LoginPage />} />
-
         <Route path="/register" element={<RegisterPage />} />
-
         <Route
           path="/dashboard"
           element={
@@ -35,7 +31,6 @@ const App = () => {
             </ProtectedRoute>
           }
         />
-
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
