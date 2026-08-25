@@ -115,6 +115,17 @@ jobs:
       # ==============================
       - name: Make Maven Wrapper executable
         run: chmod +x mvnw
+          
+          # ==============================
+          # Verify CI Environment
+          # ==============================
+               - name: Verify CI environment
+               run: |
+                 echo "MINIO_URL=$MINIO_URL"
+                 echo "MINIO_ACCESS_KEY=$MINIO_ACCESS_KEY"
+                 echo "MINIO_BUCKET_NAME=$MINIO_BUCKET_NAME"
+                 echo "REDIS_HOST=$SPRING_DATA_REDIS_HOST"
+                 echo "DB_USER=$SPRING_DATASOURCE_USERNAME"
 
       # ==============================
       # Build + Test
