@@ -63,31 +63,27 @@ jobs:
           --health-retries=10
         command: server /data --console-address ":9001"
 
+    # ==============================
+    # Environment Variables
+    # ==============================
     env:
-      # ==============================
+
       # MySQL
-      # ==============================
       SPRING_DATASOURCE_URL: jdbc:mysql://127.0.0.1:3306/file_storage_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: rootpassword123
 
-      # ==============================
       # Redis
-      # ==============================
       SPRING_DATA_REDIS_HOST: 127.0.0.1
       SPRING_DATA_REDIS_PORT: 6379
 
-      # ==============================
       # MinIO
-      # ==============================
       MINIO_URL: http://127.0.0.1:9000
       MINIO_ACCESS_KEY: minioadmin
       MINIO_SECRET_KEY: minioadmin
       MINIO_BUCKET_NAME: file-storage
 
-      # ==============================
       # JWT
-      # ==============================
       JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
       JWT_EXPIRATION: 86400000
       JWT_REFRESH_EXPIRATION: 604800000
@@ -101,7 +97,7 @@ jobs:
         uses: actions/checkout@v4
 
       # ==============================
-      # Java
+      # Java 21
       # ==============================
       - name: Set up Java 21
         uses: actions/setup-java@v4
@@ -115,17 +111,17 @@ jobs:
       # ==============================
       - name: Make Maven Wrapper executable
         run: chmod +x mvnw
-          
-          # ==============================
-          # Verify CI Environment
-          # ==============================
-               - name: Verify CI environment
-               run: |
-                 echo "MINIO_URL=$MINIO_URL"
-                 echo "MINIO_ACCESS_KEY=$MINIO_ACCESS_KEY"
-                 echo "MINIO_BUCKET_NAME=$MINIO_BUCKET_NAME"
-                 echo "REDIS_HOST=$SPRING_DATA_REDIS_HOST"
-                 echo "DB_USER=$SPRING_DATASOURCE_USERNAME"
+
+      # ==============================
+      # Verify CI Environment
+      # ==============================
+      - name: Verify CI environment
+        run: |
+          echo "MINIO_URL=$MINIO_URL"
+          echo "MINIO_ACCESS_KEY=$MINIO_ACCESS_KEY"
+          echo "MINIO_BUCKET_NAME=$MINIO_BUCKET_NAME"
+          echo "REDIS_HOST=$SPRING_DATA_REDIS_HOST"
+          echo "DB_USER=$SPRING_DATASOURCE_USERNAME"
 
       # ==============================
       # Build + Test
@@ -143,7 +139,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # ==============================
-      # Backend Docker Image
+      # Build Backend Docker Image
       # ==============================
       - name: Build backend Docker image
         run: |
@@ -151,7 +147,7 @@ jobs:
             -t ${{ secrets.DOCKERHUB_USERNAME }}/distributed-file-storage-backend:latest .
 
       # ==============================
-      # Push Backend Image
+      # Push Backend Docker Image
       # ==============================
       - name: Push backend Docker image
         run: |
