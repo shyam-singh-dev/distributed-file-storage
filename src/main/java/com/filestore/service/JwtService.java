@@ -1,5 +1,10 @@
 package com.filestore.service;
 
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.RedisTemplate;
+import java.util.concurrent.TimeUnit;
+
+
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,6 +22,8 @@ import java.util.function.Function;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
+
 
 public class JwtService {
 
@@ -25,6 +32,53 @@ public class JwtService {
 
     @Value("${jwt.expiration}")
     private long expirationTime;
+
+    private final RedisTemplate<String, Object> redisTemplate;
+
+    private static final String BLACKLIST_PREFIX = "blacklist:";
+
+    // ─────────────────────────────────────
+    // GENERATE REFRESH TOKEN
+    // ─────────────────────────────────────
+    public String generateRefreshToken(UserDetails userDetails) {
+        long refreshExpiration = 604800000L; // 7 days
+
+        return Jwts.builder()
+                .subject(userDetails.getUsername())
+                .issuedAt(new Date(System.currentTimeMillis()))
+                .expiration(new Date(
+                        System.currentTimeMillis() + refreshExpiration))
+                .claim("type", "refresh")
+                .signWith(getSigningKey())
+                .compact();
+    }
+
+    // ─────────────────────────────────────
+    // BLACKLIST TOKEN (for logout)
+    // ─────────────────────────────────────
+    public void blacklistToken(String token) {
+        long expiration = extractExpiration(token).getTime()
+                - System.currentTimeMillis();
+
+        if (expiration > 0) {
+            redisTemplate.opsForValue().set(
+                    BLACKLIST_PREFIX + token,
+                    "revoked",
+                    expiration,
+                    TimeUnit.MILLISECONDS
+            );
+            log.info("Token blacklisted successfully");
+        }
+    }
+
+    // ─────────────────────────────────────
+   // CHECK IF TOKEN IS BLACKLISTED
+  // ─────────────────────────────────────
+    public boolean isTokenBlacklisted(String token) {
+        Boolean isBlacklisted = redisTemplate.hasKey(
+                BLACKLIST_PREFIX + token);
+        return Boolean.TRUE.equals(isBlacklisted);
+    }
 
     // Generate token
 
@@ -50,6 +104,11 @@ public class JwtService {
         // Validate token
 
         public boolean isTokenValid(String token,UserDetails userDetails) {
+
+        if(isTokenBlacklisted(token)){
+            log.warn("Token is blacklist");
+            return false;
+        }
         final String username = extractUsername(token);
         boolean isValid = username.equals(userDetails.getUsername())
                 &&  !isTokenExpired(token);

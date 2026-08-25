@@ -1,12 +1,13 @@
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import { getLoggedInUser, isLoggedIn, logoutUser } from "../services/authService";
 
 const Navbar = () => {
   const navigate = useNavigate();
-  const user = getLoggedInUser();
+  const { isAuthenticated, user, logout } = useAuth();
 
-  const handleLogout = () => {
-    logoutUser();
+   const handleLogout = async () => {
+   await logoutUser();
     navigate("/login");
   };
 

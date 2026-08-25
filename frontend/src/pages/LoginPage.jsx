@@ -30,11 +30,12 @@ const LoginPage = () => {
 
     try {
       const response = await loginUser(formData);
-
+      const refreshToken = response.data.refreshToken;
       const token = response.data.token;
       const user = response.data.user;
 
       localStorage.setItem("token", token);
+      localStorage.setItem("refreshToken", refreshToken);
       localStorage.setItem("user", JSON.stringify(user));
 
       navigate("/dashboard");

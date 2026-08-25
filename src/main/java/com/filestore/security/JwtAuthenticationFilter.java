@@ -1,6 +1,5 @@
 package com.filestore.security;
 
-
 import com.filestore.service.JwtService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -21,7 +20,6 @@ import java.io.IOException;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
@@ -32,55 +30,67 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull HttpServletRequest request,
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain
-            )throws ServletException, IOException {
+    ) throws ServletException, IOException {
 
-        // Step one : Read Authorization header
-
+        // Step 1: Read Authorization header
         final String authHeader = request.getHeader("Authorization");
 
-        // Step two : No token ? skip this filter
-
-        if (authHeader==null || !authHeader.startsWith("Bearer ")) {
+        // Step 2: No token -> continue normally
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             log.debug("No JWT token found in request");
-            filterChain.doFilter(request,response);
+            filterChain.doFilter(request, response);
             return;
         }
 
-        // Step three : Extract JWT (remove "Bearer" prefix)
+        // Step 3: Extract JWT
         final String jwt = authHeader.substring(7);
 
-        // Step 4 : Extract email from token
+        // Step 4: Check blacklist BEFORE using the token
+        if (jwtService.isTokenBlacklisted(jwt)) {
+            log.warn("Blacklisted token used");
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        // Step 5: Extract email from token
         final String userEmail = jwtService.extractUsername(jwt);
 
-        // Step 5 : Validation if user not already authenticated
+        // Step 6: User not already authenticated
+        if (userEmail != null
+                && SecurityContextHolder.getContext().getAuthentication() == null) {
 
-        if (userEmail != null && SecurityContextHolder.getContext().getAuthentication()==null) {
+            // Step 7: Load user from database
+            UserDetails userDetails =
+                    customUserDetailsService.loadUserByUsername(userEmail);
 
-            // Step 6 : Load user from database
+            // Step 8: Validate JWT
+            if (jwtService.isTokenValid(jwt, userDetails)) {
 
-            UserDetails userDetails = customUserDetailsService.loadUserByUsername(userEmail);
+                // Step 9: Create Authentication
+                UsernamePasswordAuthenticationToken authToken =
+                        new UsernamePasswordAuthenticationToken(
+                                userDetails,
+                                null,
+                                userDetails.getAuthorities()
+                        );
 
-            // Step 7 : Validate token
-
-            if(jwtService.isTokenValid(jwt,userDetails)) {
-
-                // Step 8 : Create auth token
-                UsernamePasswordAuthenticationToken authToken  =  new UsernamePasswordAuthenticationToken(userDetails,null,userDetails.getAuthorities());
                 authToken.setDetails(
-                        new WebAuthenticationDetailsSource().buildDetails(request)
+                        new WebAuthenticationDetailsSource()
+                                .buildDetails(request)
                 );
 
-                // Step 9 : Set in SecurityContext
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+                // Step 10: Set SecurityContext
+                SecurityContextHolder.getContext()
+                        .setAuthentication(authToken);
 
-                log.info("User {} authenticated via JWT", userEmail);
+                log.info(
+                        "User {} authenticated via JWT",
+                        userEmail
+                );
             }
-
-            // Step ten : Continue filter chain
-            filterChain.doFilter(request,response);
-
         }
+
+        // Step 11: Continue filter chain ONCE
+        filterChain.doFilter(request, response);
     }
-
-
 }

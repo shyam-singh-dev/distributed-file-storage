@@ -1,5 +1,9 @@
 package com.filestore.service.impl;
 
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
+
 import com.filestore.dto.PageResponse;
 import com.filestore.dto.ShareFileRequest;
 import com.filestore.entity.FileShare;
@@ -65,6 +69,7 @@ public class FileServiceImpl implements FileService {
     // ─────────────────────────────────────
     @Override
     @Transactional
+    @CacheEvict(value = "files", allEntries = true)
     public FileUploadResponse uploadFile(
             MultipartFile file, String uploadedBy) {
 
@@ -158,7 +163,7 @@ public class FileServiceImpl implements FileService {
     // ─────────────────────────────────────
 
     @Override
-
+   @Cacheable(value = "files", key = "#userEmail + '_' + #page + '_' + #size")
     public PageResponse<FileMetadataDTO> getUserFiles(
             String userEmail, int page, int size) {
 
@@ -172,6 +177,17 @@ public class FileServiceImpl implements FileService {
         Page<FileMetadata> filePage = fileMetadataRepository
                 .findByUploadedByAndIsDeletedFalse(
                         userEmail, pageable);
+        log.info("Files found for {}: {}",
+                userEmail, filePage.getTotalElements());
+
+        filePage.getContent().forEach(file ->
+                        log.info(
+                                "File ID: {}, name: {}, uploadedBy: {}, deleted: {}",
+                                file.getId(),
+                                file.getOriginalName(),
+                                file.getUploadedBy(),
+                                file.getIsDeleted()
+                        ) );
 
         List<FileMetadataDTO> content = filePage.getContent()
                 .stream()
@@ -321,6 +337,11 @@ public class FileServiceImpl implements FileService {
     // GET FILE BY ID
     // ─────────────────────────────────────
     @Override
+    //@Cacheable(value = "files", key = "#fileId")
+    @Cacheable(
+            value = "files",
+            key = "#userEmail + '_file_' + #fileId"
+    )
     public FileMetadataDTO getFileById(
             Long fileId, String userEmail) {
 
@@ -339,6 +360,7 @@ public class FileServiceImpl implements FileService {
     // ─────────────────────────────────────
     @Override
     @Transactional
+    @CacheEvict(value = "files", allEntries = true)
     public void deleteFile(Long fileId, String userEmail) {
 
         log.info("Delete request for file: {} by: {}",

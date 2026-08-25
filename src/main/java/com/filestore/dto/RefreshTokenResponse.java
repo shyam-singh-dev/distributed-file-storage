@@ -1,6 +1,5 @@
 package com.filestore.dto;
 
-
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,12 +9,10 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+public class RefreshTokenResponse {
 
-public class AuthResponse {
-    private String token;
+    private String accessToken;
+    private String refreshToken;
     private String tokenType;
     private Long expiresIn;
-    private String refreshToken;
-    private UserDTO user;
-
 }

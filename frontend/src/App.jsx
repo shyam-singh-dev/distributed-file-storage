@@ -5,9 +5,11 @@ import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
 import DashboardPage from "./pages/DashboardPage";
 import { isLoggedIn } from "./services/authService";
+import { AuthProvider } from "./context/AuthContext";
 
 const App = () => {
   return (
+      <AuthProvider>
     <BrowserRouter>
       <Navbar />
       <Routes>
@@ -34,6 +36,7 @@ const App = () => {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
+    </AuthProvider>
   );
 };
 

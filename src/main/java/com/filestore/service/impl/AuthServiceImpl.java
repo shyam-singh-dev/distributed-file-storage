@@ -1,5 +1,11 @@
 package com.filestore.service.impl;
 
+import com.filestore.dto.RefreshTokenRequest;
+import com.filestore.dto.RefreshTokenResponse;
+import com.filestore.entity.RefreshToken;
+import com.filestore.repository.RefreshTokenRepository;
+import java.time.Instant;
+
 import com.filestore.dto.AuthResponse;
 import com.filestore.dto.LoginRequest;
 import com.filestore.dto.RegisterRequest;
@@ -17,6 +23,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -30,6 +37,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final RefreshTokenRepository refreshTokenRepository;
 
     @Override
     public UserDTO register(RegisterRequest request) {
@@ -70,6 +78,8 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
+
     public AuthResponse login(LoginRequest request) {
         log.info("Login attempt : {}",request.getEmail());
         try{
@@ -103,17 +113,109 @@ public class AuthServiceImpl implements AuthService {
                                 "ROLE_" + user.getRole()))
                 );
 
-        // Generate JWT
-        String jwtToken = jwtService.generateToken(userDetails);
 
-        log.info("JWT generated for: {}", request.getEmail());
+        // Generate access token (24 hours)
+        String accessToken = jwtService.generateToken(userDetails);
+
+
+        // Generate refresh token (7 days)
+        String refreshTokenString =
+                jwtService.generateRefreshToken(userDetails);
+
+
+        // Save refresh token in database
+        RefreshToken refreshToken = RefreshToken.builder()
+                .token(refreshTokenString)
+                .userEmail(user.getEmail())
+                .expiryDate(Instant.now().plusMillis(604800000L))
+                .isRevoked(false)
+                .build();
+
+        // Delete old refresh tokens for this user
+        refreshTokenRepository.deleteByUserEmail(user.getEmail());
+        refreshTokenRepository.save(refreshToken);
+
+        log.info("Login successful with refresh token for: {}",
+                request.getEmail());
 
         return AuthResponse.builder()
-                .token(jwtToken)
+                .token(accessToken)
                 .tokenType("Bearer")
                 .expiresIn(86400000L)
+                .refreshToken(refreshTokenString)
                 .user(convertToDTO(user))
                 .build();
+    }
+
+    // ─────────────────────────────────────
+   // REFRESH ACCESS TOKEN
+  // ─────────────────────────────────────
+    @Transactional
+    public RefreshTokenResponse refreshToken(
+            RefreshTokenRequest request) {
+
+        String requestToken = request.getRefreshToken();
+
+        // Find refresh token in database
+        RefreshToken refreshToken = refreshTokenRepository
+                .findByToken(requestToken)
+                .orElseThrow(() -> new RuntimeException(
+                        "Invalid refresh token"));
+
+        // Check if revoked
+        if (refreshToken.getIsRevoked()) {
+            throw new RuntimeException("Refresh token has been revoked");
+        }
+
+        // Check if expired
+        if (refreshToken.isExpired()) {
+            refreshTokenRepository.delete(refreshToken);
+            throw new RuntimeException("Refresh token has expired");
+        }
+
+        // Load user
+        User user = userRepository
+                .findByEmail(refreshToken.getUserEmail())
+                .orElseThrow(() -> new RuntimeException(
+                        "User not found"));
+
+        // Generate new access token
+        org.springframework.security.core.userdetails.User
+                userDetails =
+                new org.springframework.security.core.userdetails.User(
+                        user.getEmail(),
+                        user.getPassword(),
+                        java.util.List.of(
+                                new org.springframework.security
+                                        .core.authority.SimpleGrantedAuthority(
+                                        "ROLE_" + user.getRole()))
+                );
+
+        String newAccessToken = jwtService.generateToken(userDetails);
+
+        return RefreshTokenResponse.builder()
+                .accessToken(newAccessToken)
+                .refreshToken(requestToken)
+                .tokenType("Bearer")
+                .expiresIn(86400000L)
+                .build();
+    }
+
+
+
+    // ─────────────────────────────────────
+    // LOGOUT
+    // ─────────────────────────────────────
+    @Transactional
+    public void logout(String accessToken, String userEmail) {
+
+        // Blacklist access token in Redis
+        jwtService.blacklistToken(accessToken);
+
+        // Revoke refresh token in MySQL
+        refreshTokenRepository.deleteByUserEmail(userEmail);
+
+        log.info("User logged out: {}", userEmail);
     }
 
     private UserDTO convertToDTO(User user) {

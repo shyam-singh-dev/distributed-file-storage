@@ -1,6 +1,6 @@
 package com.filestore.dto;
 
-
+import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,12 +10,8 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+public class RefreshTokenRequest {
 
-public class AuthResponse {
-    private String token;
-    private String tokenType;
-    private Long expiresIn;
+    @NotBlank(message = "Refresh token is required")
     private String refreshToken;
-    private UserDTO user;
-
 }
